@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    description: Backend for indexed text search operations.
+  labels:
+    app.kubernetes.io/component: indexed-search
+    deploy: sourcegraph
+    sourcegraph-resource-requires: no-cluster-admin
+  name: indexed-search
+  namespace: sourcegraph-dev
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: indexed-search
+  serviceName: indexed-search
+  template:
+    metadata:
+      labels:
+        app: indexed-search
+        deploy: sourcegraph
+    spec:
+      containers:
+      - image: index.docker.io/sourcegraph/indexed-searcher:3.32.0@sha256:fc5dba37a7cb08fbc2401559e5bce2299770d9cd2861ce555d3c89817089c878
+        name: zoekt-webserver
+        ports:
+        - containerPort: 6070
+          name: http
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          periodSeconds: 5
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4G
+          requests:
+            cpu: 500m
+            memory: 2G
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      - image: index.docker.io/sourcegraph/search-indexer:3.32.0@sha256:c0eed47bb3bdaff187501d7f6f0336ab407a2bdc8581fe8163ca973dde4f5d76
+        name: zoekt-indexserver
+        ports:
+        - containerPort: 6072
+          name: index-http
+        resources:
+          limits:
+            cpu: "8"
+            memory: 8G
+          requests:
+            cpu: "4"
+            memory: 4G
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      securityContext:
+        runAsUser: 0
+      volumes:
+      - name: data
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        deploy: sourcegraph
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Gi
+      storageClassName: sourcegraph

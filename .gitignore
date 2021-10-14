@@ -7,6 +7,6 @@ generated/
 .pulumi
 Pulumi.*.yaml
 /pkg/gen/openapi-specs
-generated-cluster/
+# generated-cluster/
 
 /right.dhall
